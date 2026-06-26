@@ -138,7 +138,13 @@ python train_infbagel.py --config-name config_train_infbagel_mix
 
 ### Consistency Model
 
-Train the InfBaGel consistency model (fewer epochs, faster inference):
+The consistency model is trained via consistency distillation from a pretrained diffusion model. First train the diffusion model, then set the checkpoint path in `config/config_train_infbagel_cm.yaml`:
+
+```yaml
+ckpt_path: "/path/to/diffusion/checkpoint.pth"
+```
+
+Then start distillation (fewer epochs, faster inference):
 
 ```bash
 python train_infbagel.py --config-name config_train_infbagel_cm
@@ -153,6 +159,8 @@ The consistency model config (`config/config_train_infbagel_cm.yaml`) uses `samp
 | `epochs` | 201 | Number of training epochs |
 | `num_gpus` | 4 | Number of GPUs for DDP training |
 | `ckpt_interval` | 20 | Checkpoint save interval (epochs) |
+| `load_state_dict` | `true` | Load weights from `ckpt_path` (must be `true` for distillation) |
+| `ckpt_path` | `""` | Path to pretrained diffusion model checkpoint |
 
 To train with mixed dataset:
 
@@ -161,6 +169,13 @@ python train_infbagel.py --config-name config_train_infbagel_mix_cm
 ```
 
 ## Evaluation
+
+Sampling behavior is controlled by `config/config_sample_infbagel.yaml`. Two key guidance parameters:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `w` | `1` | Classifier-free guidance weight for scene voxel conditioning |
+| `guidance_weight` | `1` | Classifier guidance weight applied during sampling |
 
 ### HOSI Evaluation (Human-Object-Scene Interaction)
 

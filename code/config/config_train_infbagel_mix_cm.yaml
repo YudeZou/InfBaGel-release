@@ -58,7 +58,7 @@ loss_w_fk: 1
 auto_regre_num: 2
 
 start_epoch: 0
-ckpt_path: ""
+ckpt_path: "" # Path to pretrained diffusion model checkpoint
 
 hydra:
   run:
