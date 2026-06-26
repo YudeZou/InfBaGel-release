@@ -9,6 +9,7 @@ defaults:
   - _self_
 
 exp_name: infbagel
+sample_type: diffusion
 train: true
 load_state_dict: false
 batch_size: 512
@@ -18,7 +19,6 @@ device: cuda:0
 use_tensorboard: true
 ckpt_interval: 20
 exp_dir: ${oc.env:ROOT_DIR}/results/${exp_name}
-smpl_dir: ${oc.env:ROOT_DIR}/smpl_models
 
 w: 1
 
@@ -26,14 +26,13 @@ num_gpus: 4
 num_workers: 2
 scene_type: occ_temp
 max_window_size: 16
-motion_len: 100000
 vis: false
 start_type: stand
 
 load_language: true
 load_scene: true
 use_pi: true
-load_hand_goal: true
+load_scene_goal: true
 load_pelvis_goal: true
 load_object_goal: true
 
@@ -41,21 +40,14 @@ use_random_frame_bps: true
 use_object_keypoints: true
 add_object_voxel: true
 
-# loss_w_obj_pts: 50
-# loss_w_fk: 50
-
-loss_w_vel: 1
-
-loss_w_obj_pts: 0.5
-loss_w_fk: 1
-
+loss_w_obj_pts: 50
+loss_w_fk: 50
 auto_regre_num: 2
 
 temp_voxel_num: 3
-is_o0: false # whether to use o0
 
 start_epoch: 0
-ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_716_pe_x0_10/checkpoints/chois_716_pe_x0_10_epoch260.pth"
+ckpt_path: ""
 
 hydra:
   run:

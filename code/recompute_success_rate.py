@@ -20,7 +20,7 @@ def load_experiment_data(experiment_name: str) -> Tuple[List[Dict], int, int]:
     Returns:
         tuple: (list of metrics for all samples, number of processed scenes, total number of samples)
     """
-    base_output_dir = f'hsoi_results/{experiment_name}'
+    base_output_dir = f'hosi_results/{experiment_name}'
     
     if not os.path.exists(base_output_dir):
         print(f"错误：找不到实验目录 {base_output_dir}")

@@ -1,90 +1,24 @@
-#!/usr/bin/env python3
-"""
-Script to restore human and object meshes from saved motion parameters and visualize as video.
-
-Usage:
-    python render_mesh_from_params.py --param_file path/to/motion_params.pkl --output_dir ./output
-"""
-
 import os
 import argparse
 import pickle
 import numpy as np
 import torch
 import trimesh
-import smplx
 import subprocess
 import imageio
 import shutil
 import glob
 
-# Import necessary functions from the original codebase
-from constants import SMPL_DIR
-from utils import yup_to_zup, zup_to_yup, load_object_geometry_w_rest_geo
+from utils import yup_to_zup, zup_to_yup, load_object_geometry_w_rest_geo, run_smplx_model, create_smplx_model
+from constants import ROOT_DIR
 
 # Blender rendering configuration (modify paths as needed)
-BLENDER_PATH = "/cpfs04/shared/sport/zouyude/jjgong/blender-3.6.3-linux-x64/blender"  # Adjust to your blender executable path
-BLENDER_UTILS_ROOT_FOLDER = "/cpfs04/shared/sport/zouyude/code/chois_release/manip/vis"
-BLENDER_SCENE_FOLDER = "/cpfs04/shared/sport/zouyude/code/chois_release/processed_data/blender_files"
+BLENDER_PATH = "blender"  # Set to your Blender executable (tested with Blender 3.6.3); must be installed separately
+BLENDER_UTILS_ROOT_FOLDER = os.path.join(ROOT_DIR, "vis")
+BLENDER_SCENE_FOLDER = os.path.join(ROOT_DIR, "vis", "blender_files")
 DEFAULT_SCENE_BLEND = os.path.join(BLENDER_SCENE_FOLDER, "floor_colorful_mat.blend")
 
-
-def run_smplx_model(pose_pred, transl, betas, gender, joints_ind=None):
-    """
-    Run SMPL-X model to generate human mesh vertices and joints.
-    
-    Args:
-        pose_pred: [T, 22, 3] - SMPL body pose in axis-angle representation
-        transl: [T, 3] - root translation
-        betas: [16] - SMPL shape parameters  
-        gender: str - gender ('male', 'female', 'neutral')
-        joints_ind: list - joint indices to extract
-        
-    Returns:
-        vertices: [T, V, 3] - mesh vertices
-        joints: [T, J, 3] - joint positions
-    """
-    if joints_ind is None:
-        joints_ind = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 43]
-    
-    device = pose_pred.device if torch.is_tensor(pose_pred) else torch.device('cpu')
-    
-    # Convert to tensor if needed
-    if not torch.is_tensor(pose_pred):
-        pose_pred = torch.from_numpy(pose_pred).float().to(device)
-    if not torch.is_tensor(transl):
-        transl = torch.from_numpy(transl).float().to(device)
-    if not torch.is_tensor(betas):
-        betas = torch.from_numpy(betas).float().to(device)
-    
-    smpl_model = smplx.create(SMPL_DIR, model_type='smplx',
-                              gender=gender, ext='npz',
-                              num_betas=16,
-                              use_pca=False,
-                              create_global_orient=True,
-                              create_body_pose=True,
-                              create_betas=True,
-                              create_left_hand_pose=True,
-                              create_right_hand_pose=True,
-                              flat_hand_mean=True,
-                              create_expression=True,
-                              create_jaw_pose=True,
-                              create_leye_pose=True,
-                              create_reye_pose=True,
-                              create_transl=True,
-                              batch_size=pose_pred.shape[0],
-                              ).to(device)
-    
-    smpl_output = smpl_model(transl=transl, 
-                           body_pose=pose_pred[:, 1:], 
-                           global_orient=pose_pred[:, :1], 
-                           betas=betas[None].repeat(pose_pred.shape[0], 1),
-                           return_verts=True)
-    
-    return smpl_output.vertices, smpl_output.joints[:, joints_ind].reshape(pose_pred.shape[0], -1, 3)
-
-
-def load_object_rest_geometry(rest_verts_root="/cpfs04/shared/sport/zouyude/code/chois_release/processed_data/rest_object_geo"):
+def load_object_rest_geometry(rest_verts_root=os.path.join(ROOT_DIR, "data", "object", "rest_object_geo")):
     """
     Load object rest geometry (vertices and faces) from PLY files.
     
@@ -142,15 +76,10 @@ def restore_human_mesh(human_params, device='cuda' if torch.cuda.is_available() 
     
     print(f"Restoring human mesh: {pose_pred.shape[0]} frames, gender: {gender}")
     
-    vertices, joints = run_smplx_model(pose_pred.reshape(-1, 22, 3), root_trans, betas, gender)
-    
-    # Get face connectivity from SMPL model
-    device_cpu = torch.device('cpu')
-    smpl_model = smplx.create(SMPL_DIR, model_type='smplx',
-                              gender=gender, ext='npz',
-                              num_betas=16,
-                              use_pca=False,
-                              batch_size=1).to(device_cpu)
+    smpl_model = create_smplx_model(gender, device, batch_size=1)
+    vertices, joints = run_smplx_model(pose_pred.reshape(-1, 22, 3), root_trans, betas, gender, smpl_model=smpl_model)
+
+    # Get face connectivity from the same SMPL-X model
     faces = smpl_model.faces.astype(np.int32)
     
     return vertices.detach().cpu().numpy(), joints.detach().cpu().numpy(), faces
@@ -397,8 +326,8 @@ def main():
                        help='Output mesh format')
     parser.add_argument('--device', type=str, default='auto',
                        help='Device to use (auto, cpu, cuda)')
-    parser.add_argument('--rest_verts_root', type=str, 
-                       default="/cpfs04/shared/sport/zouyude/code/chois_release/processed_data/rest_object_geo",
+    parser.add_argument('--rest_verts_root', type=str,
+                       default=os.path.join(ROOT_DIR, "data", "object", "rest_object_geo"),
                        help='Path to object rest geometry directory')
     parser.add_argument('--fps', type=int, default=30,
                        help='Video frame rate')

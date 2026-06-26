@@ -1,4 +1,4 @@
-folder: ${oc.env:ROOT_DIR}/test
+folder: ${oc.env:ROOT_DIR}/data/test
 device: ${device}
 batch_size: ${batch_size}
 step: 3
@@ -11,7 +11,7 @@ test_scene_name: None
 train: ${train}
 load_language: ${load_language}
 load_scene: ${load_scene}
-load_hand_goal: ${load_hand_goal}
+load_scene_goal: ${load_scene_goal}
 load_pelvis_goal: ${load_pelvis_goal}
 load_object_goal: ${load_object_goal}
 use_pi: ${use_pi}

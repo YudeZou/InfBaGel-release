@@ -11,21 +11,9 @@ __pycache__/
 *.png
 *.mp4
 *.pkl
+*.jpg
 results/
-ckpts/
+checkpoint/
 smpl_models/
-smplx_handposes.npz
-test/
-test_/
-train/
-eval_result/
-Scene_mesh/
-Scene_sdf/
-Scene_voxel_mesh/
-code/debug/
-code/plan.md
-code/tmp_cleanup/
-# external symlinks (point to absolute paths; must not be committed)
-/smpl_models
-/test
-/train
+t2m_eval/
+data/

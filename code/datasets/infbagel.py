@@ -14,7 +14,7 @@ from scipy.ndimage import distance_transform_edt
 
 class InfBaGelDataset(Dataset):
     def __init__(self, folder, device, mesh_grid, batch_size, step, nb_voxels, train=True,
-                 load_scene=True, load_language=True, load_pelvis_goal=False, load_hand_goal=False,
+                 load_scene=True, load_language=True, load_pelvis_goal=False, load_scene_goal=False,
                  load_object_goal=False, use_random_frame_bps=False, use_object_keypoints=False,
                  max_window_size=16,
                  use_pi=True,
@@ -29,7 +29,7 @@ class InfBaGelDataset(Dataset):
         self.load_scene = load_scene
         self.load_language = load_language
         self.load_pelvis_goal = load_pelvis_goal
-        self.load_hand_goal = load_hand_goal
+        self.load_scene_goal = load_scene_goal
         self.load_object_goal = load_object_goal
         self.use_pi = use_pi
         self.vis = vis
@@ -134,18 +134,6 @@ class InfBaGelDataset(Dataset):
             
             self.ori_sequence_idx = language_motion_dict['ori_sequence_idx']
 
-            # if self.vis:  # for sampling first two frames
-            #     if self.start_type == 'stand':
-            #         valid_idx = np.load('datasets/valid_idx_stand.npy')
-            #         self.start_ind = self.start_ind[valid_idx]
-            #         self.end_ind = self.end_ind[valid_idx]
-            #         self.text = [self.text[idx] for idx in valid_idx]
-            #     elif self.start_type == 'sit':
-            #         valid_idx = np.load('datasets/valid_idx_sit.npy')
-            #         self.start_ind = self.start_ind[valid_idx]
-            #         self.end_ind = self.end_ind[valid_idx]
-            #         self.text = [self.text[idx] for idx in valid_idx]
-
         self.step = step
         self.batch_size = batch_size
 
@@ -208,7 +196,6 @@ class InfBaGelDataset(Dataset):
                     .reshape(-1, 1).to(device=device, dtype=torch.long)
 
         if self.max_window_size == 16:
-            # norm = np.load(os.path.join(folder, 'norm_inter_and_loco__16frames.npy'))
             norm = np.load(os.path.join(folder, 'norm.npy'))
 
         self.min = norm[0].astype(np.float32)
@@ -246,7 +233,7 @@ class InfBaGelDataset(Dataset):
 
         if self.load_object_goal:
             self.contact_label = {}
-            contact_label_folder = '/cpfs04/shared/sport/zouyude/code/chois_release/processed_data/contact_labels_w_semantics_npy_files/'
+            contact_label_folder = os.path.join(folder, 'contact_label_npy_files')
             for file in os.listdir(contact_label_folder):
                 self.contact_label[file[:-4]] = np.load(os.path.join(contact_label_folder, file))
 
@@ -315,9 +302,8 @@ class InfBaGelDataset(Dataset):
             assert end_idx - start_idx == self.max_window_size * 3
 
             pelvis_goal = np.zeros((3, )).astype(np.float32)
-            hand_goal = np.zeros((3, )).astype(np.float32)
+            scene_goal = np.zeros((3, )).astype(np.float32)
             object_goal = np.zeros((3, )).astype(np.float32)
-            is_pick = np.zeros((1, )).astype(bool)
             is_loco = False
             is_object = False
 
@@ -325,25 +311,18 @@ class InfBaGelDataset(Dataset):
             text_clip_embedding = self.clip_features[self.text2features_idx[text]]  # (1, 768)
             text_clip_embedding = torch.from_numpy(text_clip_embedding).float().reshape(1, -1)
             text_clip_embedding = text_clip_embedding / torch.norm(text_clip_embedding, dim=1, keepdim=True)
-            # text_clip_embedding = np.zeros((1, 768)).astype(np.float32)
             
             left_hand_inter_frame = self.left_hand_inter_frame[idx]
             right_hand_inter_frame = self.right_hand_inter_frame[idx]
             if self.load_object_goal:
                 is_object = self.need_object[idx]
 
-            # if is_object:
-            #     origin_sequence_idx = self.ori_sequence_idx[idx] # todo
-            # else:
-            #     origin_sequence_idx = start_idx
             origin_sequence_idx = self.ori_sequence_idx[idx] 
 
             if left_hand_inter_frame != -1:
-                hand_goal = self.joints[left_hand_inter_frame, 24].copy()  # left hand index1
-                is_pick = np.ones((1,)).astype(bool)
+                scene_goal = self.joints[left_hand_inter_frame, 24].copy()  # left hand index1
             elif right_hand_inter_frame != -1:
-                hand_goal = self.joints[right_hand_inter_frame, 26].copy()  # right hand index1
-                is_pick = np.ones((1,)).astype(bool)
+                scene_goal = self.joints[right_hand_inter_frame, 26].copy()  # right hand index1
 
             seq_len = self.ori_sequence_end_idx[origin_sequence_idx] - self.ori_sequence_start_idx[origin_sequence_idx]
             need_scene = self.need_scene[idx]
@@ -353,7 +332,6 @@ class InfBaGelDataset(Dataset):
             if need_pi and self.train:
                 pi = pi + np.random.randint(-5, 5)
                 pi = max(pi, 0)
-                # pi = float(pi) / (self.ori_sequence_end_idx[origin_sequence_idx] - self.ori_sequence_start_idx[origin_sequence_idx])
             if not need_pi:
                 pi = np.random.randint(0, seq_len - self.max_window_size * self.step)
                 
@@ -361,8 +339,8 @@ class InfBaGelDataset(Dataset):
             if need_pelvis_dir:
                 if 'sit down' in text or 'lie down' in text:
                     # pelvis_goal = self.joints[int(self.end_range[idx]), 0].copy()
-                    hand_goal = self.joints[int(self.end_range[idx]), 0].copy() # use hand goal to locate end pelvis goal
-                    pelvis_goal = self.joints[end_idx-3, 0].copy() # align with chois
+                    scene_goal = self.joints[int(self.end_range[idx]), 0].copy() # use hand goal to locate end pelvis goal
+                    pelvis_goal = self.joints[end_idx-3, 0].copy() # align with omomo
                 else:
                     pelvis_goal = self.joints[end_idx-3, 0].copy()
                     is_loco = True
@@ -372,7 +350,7 @@ class InfBaGelDataset(Dataset):
         init_joints = np.array([joints[0, 0, 0], 0., joints[0, 0, 2]]) # human's local frame
         joints = joints - init_joints
         pelvis_goal = pelvis_goal - init_joints
-        hand_goal = hand_goal - init_joints
+        scene_goal = scene_goal - init_joints
 
         if is_object:
             object_goal = self.object_trans[int(self.end_range[idx])-4].copy() - init_joints # human's local frame
@@ -476,21 +454,11 @@ class InfBaGelDataset(Dataset):
 
         joints = joints @ shift_rot_matrix.T
         pelvis_goal = pelvis_goal @ shift_rot_matrix.T
-        hand_goal = hand_goal @ shift_rot_matrix.T
+        scene_goal = scene_goal @ shift_rot_matrix.T
         if is_object:
             object_trans = object_trans @ shift_rot_matrix.T
             # object_rot_mat = mat[:3, :3] @ object_rot_mat
             object_goal = object_goal @ shift_rot_matrix.T
-
-        # if is_loco and not is_object:
-        #     pelvis_goal_norm = np.linalg.norm(pelvis_goal)
-        #     if pelvis_goal_norm >= 0.8:
-        #         pelvis_goal = pelvis_goal / pelvis_goal_norm * 0.8
-
-        # if is_object:
-        #     object_goal_norm = np.linalg.norm(object_goal)
-        #     if object_goal_norm >= 0.8:
-        #         object_goal = object_goal / object_goal_norm * 0.8
 
         joints = self.normalize(joints)
         joints = joints.astype(np.float32).reshape((joints.shape[0], -1))
@@ -535,9 +503,8 @@ class InfBaGelDataset(Dataset):
             'scene_flag': scene_flag,
             'text_clip_embedding': text_clip_embedding,
             'pelvis_goal': pelvis_goal.astype(np.float32),
-            'hand_goal': hand_goal.astype(np.float32),
+            'scene_goal': scene_goal.astype(np.float32),
             'object_goal': object_goal.astype(np.float32),
-            'is_pick': is_pick.astype(np.float32),
             'need_scene': need_scene,
             'need_pelvis_dir': need_pelvis_dir,
             'pi': pi,
@@ -566,9 +533,6 @@ class InfBaGelDataset(Dataset):
         }
         
         return info
-        # return joints.astype(np.float32), mat.astype(np.float32), object_trans.astype(np.float32), object_rot_mat.astype(np.float32), \
-        #         scene_flag, text_clip_embedding, pelvis_goal.astype(np.float32), hand_goal.astype(np.float32), object_goal.astype(np.float32), \
-        #         is_pick, need_scene, need_pelvis_dir, int(pi), need_pi, is_loco, is_object, obj_bps_data, object_rot_mat_ref.astype(np.float32)
 
     def get_pene_occ_count(self, points, scene_flag):
         occ = (self.scene_occ[scene_flag]).to(dtype=torch.int8).clone().to(dtype=torch.int8)
@@ -768,7 +732,7 @@ class InfBaGelDataset(Dataset):
 
         return data
 
-    # load rest pose object geometry from chois dataset
+    # load rest pose object geometry from omomo dataset
     def load_rest_pose_object_geometry_and_transform(self, object_name, obj_rot, obj_com_pos):
         rest_obj_path = os.path.join(self.rest_object_geo_folder, object_name+".ply")
         

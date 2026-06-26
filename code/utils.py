@@ -293,36 +293,68 @@ def load_state_dict_eval(model, state_dict_path, map_location='cuda:0', device='
     model.eval()
 
 
+# SMPL-X joint index subsets used across the project.
+# 24-joint set is the default; the 28-joint set additionally includes the hand
+# joints (indices 23, 24, 25, 40) and is used by the H-SOI evaluation.
+SMPLX_JOINTS_24 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 43]
+SMPLX_JOINTS_28 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 28, 40, 43]
+
+
+def create_smplx_model(gender, device, batch_size=1):
+    # Pre-create a reusable SMPL-X model. Create it once with batch_size=1 and pass it
+    # into run_smplx_model via smpl_model= to avoid re-creating the model on every call;
+    # run_smplx_model feeds explicit per-batch pose tensors so any input batch size works.
+    return smplx.create(SMPL_DIR, model_type='smplx',
+                        gender=gender, ext='npz',
+                        num_betas=16,
+                        use_pca=False,
+                        create_global_orient=True,
+                        create_body_pose=True,
+                        create_betas=True,
+                        create_left_hand_pose=True,
+                        create_right_hand_pose=True,
+                        flat_hand_mean=True,
+                        create_expression=True,
+                        create_jaw_pose=True,
+                        create_leye_pose=True,
+                        create_reye_pose=True,
+                        create_transl=True,
+                        batch_size=batch_size,
+                        ).to(device)
+
+
 def run_smplx_model(pose_pred, transl, betas, gender, joints_ind=None, smpl_model=None):
-    # pose_pred: [b*s*42, 22, 3]
-    # transl: [b*s*42, 3]
-    # joints_ind: [28]
-    # joints_ind = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 28, 40, 43]
-    joints_ind = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 28, 43]
+    # pose_pred: [B, 22, 3] axis-angle; transl: [B, 3]; betas: [B, 16] or [16]
+    # joints_ind: joint indices to return; defaults to SMPLX_JOINTS_24, pass SMPLX_JOINTS_28 for the 28-joint set.
+    # smpl_model: optional pre-created model whose batch_size may differ from B (e.g. created with batch_size=1).
+    if joints_ind is None:
+        joints_ind = SMPLX_JOINTS_24
     device = pose_pred.device
+    batch_size = pose_pred.shape[0]
 
     if smpl_model is None:
-        smpl_model = smplx.create(SMPL_DIR, model_type='smplx',
-                                gender=gender, ext='npz',
-                                num_betas=16,
-                                use_pca=False,
-                                create_global_orient=True,
-                                create_body_pose=True,
-                                create_betas=True,
-                                create_left_hand_pose=True,
-                                create_right_hand_pose=True,
-                                flat_hand_mean=True,
-                                create_expression=True,
-                                create_jaw_pose=True,
-                                create_leye_pose=True,
-                                create_reye_pose=True,
-                                create_transl=True,
-                                batch_size=pose_pred.shape[0],
-                                ).to(device)
+        smpl_model = create_smplx_model(gender, device, batch_size=batch_size)
 
-    smpl_output = smpl_model(transl=transl, body_pose=pose_pred[:, 1:], global_orient=pose_pred[:, :1], betas=betas, return_verts=True)
+    if betas.dim() == 1:
+        betas = betas[None].repeat(batch_size, 1)
 
-    return smpl_output.vertices, smpl_output.joints[:, joints_ind].reshape(pose_pred.shape[0], -1, 3)
+    # Feed the unused pose components explicitly at the current batch size so a model
+    # created with a different (e.g. fixed batch_size=1) batch can be reused for any B.
+    # Zeros match flat_hand_mean defaults, so results are identical to the per-call model.
+    zeros = lambda dim: torch.zeros(batch_size, dim, device=device, dtype=pose_pred.dtype)
+    smpl_output = smpl_model(transl=transl,
+                             body_pose=pose_pred[:, 1:],
+                             global_orient=pose_pred[:, :1],
+                             betas=betas,
+                             left_hand_pose=zeros(45),
+                             right_hand_pose=zeros(45),
+                             jaw_pose=zeros(3),
+                             leye_pose=zeros(3),
+                             reye_pose=zeros(3),
+                             expression=zeros(smpl_model.expression.shape[1]),
+                             return_verts=True)
+
+    return smpl_output.vertices, smpl_output.joints[:, joints_ind].reshape(batch_size, -1, 3)
 
 
 def interpolate_joints(joints, scale):

@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-SMPLH_PATH = "/cpfs04/shared/sport/zouyude/code/chois_release/processed_data/smpl_all_models/smplh_amass"
+_SMPLH_KINTREE = os.path.join(os.path.dirname(__file__), '..', '..', 'smpl_models', 'smplh', 'kintree_table.npy')
 
 def zup_to_yup(coord):
     # change the coordinate from z-up to y-up
@@ -41,9 +41,7 @@ def get_occupancy_from_npy(data):
     return 1 - unpacked[:, :total_size].reshape(bs, shape[0], shape[1], shape[2])
 
 def get_smpl_parents(use_joints24=True):
-    bm_path = os.path.join(SMPLH_PATH, 'male/model.npz')
-    npz_data = np.load(bm_path)
-    ori_kintree_table = npz_data['kintree_table'] # 2 X 52 
+    ori_kintree_table = np.load(_SMPLH_KINTREE)  # 2 X 52
 
     if use_joints24:
         parents = ori_kintree_table[0, :23] # 23 

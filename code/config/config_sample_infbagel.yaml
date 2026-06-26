@@ -8,7 +8,7 @@ defaults:
   - sampler:
       - pelvis
 
-exp_name: chois_813_pe_x0_voxel_3_cm_500_re
+exp_name: infbagel
 train: false
 load_state_dict: true
 batch_size: 1
@@ -19,29 +19,20 @@ ckpt_interval: 10
 w: 1
 
 interp_s: 3
-use_scheduler: false
-locomotion_threshold: 1.0
 
 num_gpus: 1
 num_workers: 4
 scene_type: occ_temp
 max_window_size: 16
-motion_len: 100000
 start_type: stand
 
 load_language: true
 load_scene: true
 use_pi: true
-load_hand_goal: true
+load_scene_goal: true
 load_pelvis_goal: true
 load_object_goal: true
 auto_regre_num: 2
-
-repeat_time: 0
-seg_num: 1
-seg_len: 4 # episode
-
-speed: 0.8
 
 use_object_keypoints: false
 use_random_frame_bps: false
@@ -50,39 +41,18 @@ add_object_voxel: true
 guidance_weight: 1
 
 temp_voxel_num: 3
-is_o0: false
 
-# Sampling method: cm -> consistency-model sampling; dm -> diffusion-model sampling
-sample_type: cm
+# Sampling method: consistency -> consistency-model sampling; diffusion -> diffusion-model sampling
+sample_type: consistency
 # Whether to additionally save the .pkl under motion_params_922/ (for mesh recovery)
-save_motion_params: false
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_525_500_dp_wo_obj/checkpoints/chois_525_500_dp_wo_obj_epoch500.pth"
+save_motion_params: true
+save_results_json: true
 
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_812_pe_x0_o0_voxel_1_last/checkpoints/chois_812_pe_x0_o0_voxel_1_last_epoch500.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_1_end_p/checkpoints/chois_813_pe_x0_voxel_1_end_p_epoch500.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_o0_voxel_3/checkpoints/chois_813_pe_x0_o0_voxel_3_epoch360.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3_cm/checkpoints/chois_813_pe_x0_voxel_3_cm_epoch080.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_809_pe_x0_voxel_0_cm/checkpoints/chois_809_pe_x0_voxel_0_cm_epoch080.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3/checkpoints/chois_813_pe_x0_voxel_3_epoch460.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_820_pe_x0_voxel_3/checkpoints/chois_820_pe_x0_voxel_3_epoch460.pth"
-
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3_cm_wo_vel_dloss/checkpoints/chois_813_pe_x0_voxel_3_cm_wo_vel_dloss_epoch160.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3_cm_wo_vel/checkpoints/chois_813_pe_x0_voxel_3_cm_wo_vel_epoch080.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3_cm/checkpoints/chois_813_pe_x0_voxel_3_cm_epoch080.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3_cm_500_re/checkpoints/chois_813_pe_x0_voxel_3_cm_500_re_epoch120.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3_cm_wo_vel/checkpoints/chois_813_pe_x0_voxel_3_cm_wo_vel_epoch120.pth"
-# ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_809_pe_x0_voxel_0_cm_500/checkpoints/chois_809_pe_x0_voxel_0_cm_500_epoch120.pth"
-
-ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3_cm_500_re/checkpoints/chois_813_pe_x0_voxel_3_cm_500_re_epoch120.pth"
+ckpt_path: "../checkpoint/checkpoint.pth"
 
 vis: false
 
-test_setting: demo-21
 exp_dir: ${oc.env:ROOT_DIR}/results/outputs
-input_path: ${oc.env:ROOT_DIR}/results/inputs/${test_setting}.pkl
-smpl_dir: ${oc.env:ROOT_DIR}/smpl_models
-
-num_test_samples: 20
 
 hydra:
   run:

@@ -1,5 +1,6 @@
-omomo_folder: ${oc.env:ROOT_DIR}/train
-lingo_folder: ${oc.env:ROOT_DIR}/dataset
+_target_: datasets.infbagel_mix.InfBaGelMixDataset
+omomo_folder: ${oc.env:ROOT_DIR}/data/train
+lingo_folder: ${oc.env:ROOT_DIR}/data/dataset
 device: ${device}
 batch_size: ${batch_size}
 step: 3
@@ -12,7 +13,7 @@ test_scene_name: None
 train: ${train}
 load_language: ${load_language}
 load_scene: ${load_scene}
-load_hand_goal: ${load_hand_goal}
+load_scene_goal: ${load_scene_goal}
 load_pelvis_goal: ${load_pelvis_goal}
 load_object_goal: ${load_object_goal}
 use_pi: ${use_pi}
@@ -26,7 +27,7 @@ human_only_ratio: ${human_only_ratio}
 # Mixed-dataset parameters
 lingo_scene_num: ${lingo_scene_num}
 lingo_data_ratio: ${lingo_data_ratio}  
-empty_chois_scene: ${empty_chois_scene}
+empty_omomo_scene: ${empty_omomo_scene}
 random_seed: ${random_seed}
 lingo_only: ${lingo_only}
 

@@ -8,7 +8,6 @@ from constants import *
 import os
 from torch.utils.tensorboard import SummaryWriter
 import datetime
-from datasets.infbagel import InfBaGelDataset
 
 os.environ['ROOT_DIR'] = '..'
 os.environ['HYDRA_FULL_ERROR'] = '1'
@@ -19,6 +18,16 @@ os.environ['NCCL_IB_DISABLE'] = '0'
 
 import sys
 sys.path.append(os.path.join(os.environ['ROOT_DIR'], 'code'))
+
+# batch fields consumed by the training step (the only tensors moved to GPU each iteration;
+# GT / metadata fields returned by the dataset are intentionally left on CPU)
+TRAIN_BATCH_KEYS = (
+    'joints', 'mat', 'object_trans', 'object_rot_mat', 'scene_flag',
+    'text_clip_embedding', 'pelvis_goal', 'scene_goal', 'object_goal',
+    'need_scene', 'need_pelvis_dir', 'pi', 'need_pi', 'is_loco', 'is_object',
+    'obj_bps_data', 'obj_rot_mat_ref', 'rest_pose_obj_nn_pts', 'transformed_obj_verts', 'object_points',
+    'global_rot_6d', 'contact_label', 'rest_human_offsets', 'seg_len', 'end_pi',
+)
 
 @hydra.main(version_base=None, config_path="config", config_name="config_train_infbagel")
 def train(cfg: DictConfig) -> None:
@@ -42,18 +51,42 @@ def train_ddp(rank, world_size, cfg):
     print('Initializing Distributed', flush=True)
     torch.distributed.init_process_group("nccl", rank=rank, world_size=world_size)
 
-    model = init_model(list(cfg.model.values())[0], device=rank, eval=False, load_state_dict=cfg.load_state_dict)
-    
-    optimizer = Adam(model.parameters(), lr=cfg.lr)
+    # cfg.sample_type selects the training objective:
+    #   diffusion   -> standard diffusion training via trainer.p_losses
+    #   consistency -> consistency-model distillation via trainer.consistency_loss
+    is_consistency = cfg.sample_type == 'consistency'
 
-    infbagel_dataset = InfBaGelDataset(**cfg.dataset)
+    if is_consistency:
+        teacher_model = init_model(list(cfg.model.values())[0], device=rank, eval=False, load_state_dict=cfg.load_state_dict)
+        teacher_model.requires_grad_(False)
+
+        student_model = init_model(list(cfg.model.values())[0], device=rank, eval=False, load_state_dict=cfg.load_state_dict)
+        student_model.requires_grad_(False)
+        student_model.module.embedding_input.requires_grad_(True)
+        student_model.module.embedding_output.requires_grad_(True)
+        student_model.module.transformer.requires_grad_(True)
+        student_model.module.out.requires_grad_(True)
+
+        target_model = init_model(list(cfg.model.values())[0], device=rank, eval=False, load_state_dict=cfg.load_state_dict)
+        target_model.requires_grad_(False)
+
+        model = student_model
+        optimizer = Adam(student_model.parameters(), lr=cfg.lr)
+    else:
+        model = init_model(list(cfg.model.values())[0], device=rank, eval=False, load_state_dict=cfg.load_state_dict)
+        optimizer = Adam(model.parameters(), lr=cfg.lr)
+
+    infbagel_dataset = hydra.utils.instantiate(cfg.dataset)
 
     sampler = DistributedSampler(infbagel_dataset)
     dataloader = DataLoader(infbagel_dataset, batch_size=cfg.batch_size, drop_last=True, num_workers=cfg.num_workers,
                             sampler=sampler, pin_memory=True, persistent_workers=True)
 
     trainer = hydra.utils.instantiate(list(cfg.sampler.values())[0])
-    trainer.set_dataset_and_model(infbagel_dataset, model)
+    if is_consistency:
+        trainer.set_dataset_and_model(infbagel_dataset, student_model, teacher_model, target_model)
+    else:
+        trainer.set_dataset_and_model(infbagel_dataset, model)
 
     if cfg.use_tensorboard and rank == 0:
         writer = SummaryWriter(log_dir=os.path.join(cfg.exp_dir, 'tensorboard_logs'))
@@ -67,46 +100,69 @@ def train_ddp(rank, world_size, cfg):
             step += 1
             optimizer.zero_grad()
 
-            joints, mat, object_trans, object_rot_mat, scene_flag, text_clip_embedding, pelvis_goal, hand_goal, object_goal,\
-                is_pick, need_scene, need_pelvis_dir, pi, need_pi, is_loco, is_object, obj_bps_data, obj_rot_mat_ref, rest_pose_obj_nn_pts, transformed_obj_verts, object_points = \
-                batch['joints'].to(device), batch['mat'].to(device), batch['object_trans'].to(device), batch['object_rot_mat'].to(device), batch['scene_flag'].to(device), \
-                batch['text_clip_embedding'].to(device), batch['pelvis_goal'].to(device), batch['hand_goal'].to(device), batch['object_goal'].to(device), \
-                batch['is_pick'].to(device), batch['need_scene'].to(device), batch['need_pelvis_dir'].to(device), batch['pi'].to(device), batch['need_pi'].to(device), batch['is_loco'].to(device), \
-                batch['is_object'].to(device), batch['obj_bps_data'].to(device), batch['obj_rot_mat_ref'].to(device), batch['rest_pose_obj_nn_pts'].to(device), batch['transformed_obj_verts'].to(device), batch['object_points'].to(device)
+            # async H2D copy for the training tensors (DataLoader sets pin_memory=True)
+            b = {k: batch[k].to(device, non_blocking=True) for k in TRAIN_BATCH_KEYS}
 
-            global_rot_6d = batch['global_rot_6d'].to(device).reshape(batch['global_rot_6d'].shape[0], batch['global_rot_6d'].shape[1], -1)
-            contact_label = batch['contact_label'].to(device)
-            rest_human_offsets = batch['rest_human_offsets'].to(device)
-            seg_len = batch['seg_len'].to(device)
-            end_pi = batch['end_pi'].to(device)
+            joints, mat, object_trans, object_rot_mat, scene_flag = \
+                b['joints'], b['mat'], b['object_trans'], b['object_rot_mat'], b['scene_flag']
+            text_clip_embedding, pelvis_goal, scene_goal, object_goal = \
+                b['text_clip_embedding'], b['pelvis_goal'], b['scene_goal'], b['object_goal']
+            need_scene, need_pelvis_dir, pi, need_pi, is_loco, is_object = \
+                b['need_scene'], b['need_pelvis_dir'], b['pi'], b['need_pi'], b['is_loco'], b['is_object']
+            obj_bps_data, obj_rot_mat_ref, rest_pose_obj_nn_pts, transformed_obj_verts, object_points = \
+                b['obj_bps_data'], b['obj_rot_mat_ref'], b['rest_pose_obj_nn_pts'], b['transformed_obj_verts'], b['object_points']
+            contact_label, rest_human_offsets, seg_len, end_pi = \
+                b['contact_label'], b['rest_human_offsets'], b['seg_len'], b['end_pi']
+
+            global_rot_6d = b['global_rot_6d'].reshape(b['global_rot_6d'].shape[0], b['global_rot_6d'].shape[1], -1)
 
             t = torch.randint(0, trainer.timesteps, (cfg.batch_size,), device=device).long()
             x_start = torch.cat([joints, global_rot_6d, object_trans, object_rot_mat.reshape(object_rot_mat.shape[0], object_rot_mat.shape[1], -1), contact_label], dim=-1) # 84 + 132 + 3 + 9 + 4
             with torch.no_grad():
                 mask, _, _ = get_mask(x_start, -1, p=1., fixed_frame=cfg.auto_regre_num)
-                
-            loss, loss_fk, loss_object, _ = trainer.p_losses(x_start, joints, mat, scene_flag, mask, t, text_clip_embedding, pelvis_goal, hand_goal, object_goal, \
-                is_pick, need_scene, need_pelvis_dir, pi, end_pi, seg_len, need_pi, is_loco, is_object, obj_bps_data, obj_rot_mat_ref, rest_pose_obj_nn_pts, transformed_obj_verts, rest_human_offsets, object_points)
 
-            if loss_object is not None:
-                loss = loss + cfg.loss_w_obj_pts * loss_object + cfg.loss_w_fk * loss_fk
+            if is_consistency:
+                loss_dict = trainer.consistency_loss(x_start, joints, mat, scene_flag, mask, t, text_clip_embedding, pelvis_goal, scene_goal, object_goal, \
+                    need_scene, need_pelvis_dir, pi, end_pi, seg_len, need_pi, is_loco, is_object, obj_bps_data, obj_rot_mat_ref, rest_pose_obj_nn_pts, transformed_obj_verts, rest_human_offsets, object_points)
 
-            if step % 10 == 0:
-                current_lr = optimizer.param_groups[0]['lr']
+                loss_consistency, loss_object, loss_fk = \
+                    loss_dict['loss_consistency'], loss_dict['loss_object'], loss_dict['loss_fk']
+
                 if loss_object is not None:
-                    print(f"Epoch: {epoch}, Step: {step} / {len(dataloader)}   Loss: {loss.item()}, Loss_fk: {loss_fk.item()}, Loss_object: {loss_object.item()}, LR: {current_lr:.6f}", flush=True)
+                    loss = loss_consistency + cfg.loss_w_obj_pts * loss_object + cfg.loss_w_fk * loss_fk
                 else:
+                    loss = loss_consistency
+
+                if step % 10 == 0:
+                    current_lr = optimizer.param_groups[0]['lr']
                     print(f"Epoch: {epoch}, Step: {step} / {len(dataloader)}   Loss: {loss.item()}, LR: {current_lr:.6f}", flush=True)
-                if cfg.use_tensorboard and rank == 1:
-                    writer.add_scalar('Loss', loss.item(), epoch * len(dataloader) + step)
-                    writer.add_scalar('Loss_fk', loss_fk.item(), epoch * len(dataloader) + step)
-                    if loss_object is not None:
-                        writer.add_scalar('Loss_object', loss_object.item(), epoch * len(dataloader) + step)
-                    writer.add_scalar('Learning Rate', current_lr, epoch * len(dataloader) + step)
+                    if cfg.use_tensorboard and rank == 0:
+                        writer.add_scalar('Loss', loss.item(), epoch * len(dataloader) + step)
+                        writer.add_scalar('Loss_consistency', loss_consistency.item(), epoch * len(dataloader) + step)
+                        if loss_object is not None:
+                            writer.add_scalar('Loss_object', loss_object.item(), epoch * len(dataloader) + step)
+                            writer.add_scalar('Loss_fk', loss_fk.item(), epoch * len(dataloader) + step)
+            else:
+                loss_dict = trainer.p_losses(x_start, joints, mat, scene_flag, mask, t, text_clip_embedding, pelvis_goal, scene_goal, object_goal, \
+                    need_scene, need_pelvis_dir, pi, end_pi, seg_len, need_pi, is_loco, is_object, obj_bps_data, obj_rot_mat_ref, rest_pose_obj_nn_pts, transformed_obj_verts, rest_human_offsets, object_points)
+
+                loss, loss_object, loss_fk = \
+                    loss_dict['loss'], loss_dict['loss_object'], loss_dict['loss_fk']
+                    
+                if loss_object is not None:
+                    loss = loss + cfg.loss_w_obj_pts * loss_object + cfg.loss_w_fk * loss_fk
+
+                if step % 10 == 0:
+                    current_lr = optimizer.param_groups[0]['lr']
+                    print(f"Epoch: {epoch}, Step: {step} / {len(dataloader)}   Loss: {loss.item()}, LR: {current_lr:.6f}", flush=True)
+                    if cfg.use_tensorboard and rank == 0:
+                        writer.add_scalar('Loss', loss.item(), epoch * len(dataloader) + step)
+                        if loss_object is not None:
+                            writer.add_scalar('Loss_object', loss_object.item(), epoch * len(dataloader) + step)
+                            writer.add_scalar('Loss_fk', loss_fk.item(), epoch * len(dataloader) + step)
 
             loss.backward()
             optimizer.step()
-
 
         if rank == 0 and epoch % cfg.ckpt_interval == 0:
             print(f'Saving checkpoint', flush=True)

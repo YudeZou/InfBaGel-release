@@ -6,17 +6,15 @@ infbagel:
   dropout_p: 0.1
   nb_voxels: ${dataset.nb_voxels}
   free_p: 0.1
-  ac_type: last_add_first_token
-  # dim_input: ${times:${dataset.nb_joints},3}
-  # dim_output: ${times:${dataset.nb_joints},3}
   dim_input: 232
   dim_output: 232
   scene_type: ${scene_type}
   load_scene: ${load_scene}
   load_language: ${load_language}
-  load_hand_goal: ${load_hand_goal}
+  load_scene_goal: ${load_scene_goal}
   load_pelvis_goal: ${load_pelvis_goal}
   load_object_goal: ${load_object_goal}
   language_feature_dim: 768
   ckpt: ${ckpt_path}
   temp_voxel_num: ${temp_voxel_num}
+  is_mix: false

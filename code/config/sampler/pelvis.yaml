@@ -10,8 +10,6 @@ pelvis:
   ddim_timesteps: 25
   cm_timesteps: 16
   w: ${w}
-  motion_len: ${motion_len}
   scene_type: ${scene_type}
   temp_voxel_num: ${temp_voxel_num}
-  is_o0: ${is_o0}  # whether to use o0
-  add_object_voxel: ${add_object_voxel}  # whether to add object voxels
+  is_mix: false

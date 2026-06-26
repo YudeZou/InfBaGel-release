@@ -4,4 +4,3 @@ pelvis:
   mask_ind: 0
   mask_y: false
   emb_f: 0
-  no_scene: true
