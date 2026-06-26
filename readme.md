@@ -78,7 +78,7 @@ The dataset is expected at `data/` (relative to the project root). The directory
 
     Place the following directories at the project root:
     - `data/` — download from [Hugging Face Dataset](https://huggingface.co/datasets/xdzouyd/infbagel-data) and place contents here
-    - `checkpoint/` — pretrained model checkpoints; download [checkpoint.tar.gz](https://drive.google.com/open?id=1h6k38uogfQ9V_z4ZO2kfyi03EXTYsoCm) and extract
+    - `checkpoint/` — pretrained consistency model checkpoints (trained on OMOMO dataset only); download [checkpoint.tar.gz](https://drive.google.com/open?id=1h6k38uogfQ9V_z4ZO2kfyi03EXTYsoCm) and extract
     - `smpl_models/` — SMPL-X body model files; download [smpl_models.tar.gz](https://drive.google.com/open?id=1IQGdCSd8HwTwPS-noBdBIf-smI79yZ2K) and extract
 
 2. **Set Up Conda Environment**:
