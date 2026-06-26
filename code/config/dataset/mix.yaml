@@ -1,0 +1,34 @@
+omomo_folder: ${oc.env:ROOT_DIR}/train
+lingo_folder: ${oc.env:ROOT_DIR}/dataset
+device: ${device}
+batch_size: ${batch_size}
+step: 3
+nb_voxels: [32, 32, 32]
+mesh_grid: [-0.6, 0.6, 0.1, 1.2, -0.6, 0.6]
+#mesh_grid: [-1., 1., 0.1, 1.2, -1., 1.]
+vis: ${vis}
+start_type: ${start_type}
+test_scene_name: None
+train: ${train}
+load_language: ${load_language}
+load_scene: ${load_scene}
+load_hand_goal: ${load_hand_goal}
+load_pelvis_goal: ${load_pelvis_goal}
+load_object_goal: ${load_object_goal}
+use_pi: ${use_pi}
+max_window_size: ${max_window_size}
+
+use_random_frame_bps: ${use_random_frame_bps}
+use_object_keypoints: ${use_object_keypoints}
+
+human_only_ratio: ${human_only_ratio}
+
+# Mixed-dataset parameters
+lingo_scene_num: ${lingo_scene_num}
+lingo_data_ratio: ${lingo_data_ratio}  
+empty_chois_scene: ${empty_chois_scene}
+random_seed: ${random_seed}
+lingo_only: ${lingo_only}
+
+joints_ind: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25, 28, 40, 43]
+nb_joints: 28

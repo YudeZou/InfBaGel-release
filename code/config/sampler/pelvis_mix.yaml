@@ -1,0 +1,16 @@
+pelvis:
+  _target_: models.infbagel_mix.Sampler
+  device: ${device}
+  mask_ind: ${guidance.pelvis.mask_ind}
+  emb_f: ${guidance.pelvis.emb_f}
+  batch_size: ${batch_size}
+  channel: 232
+  auto_regre_num: ${auto_regre_num}
+  timesteps: 500
+  ddim_timesteps: 25
+  cm_timesteps: 16
+  w: ${w}
+  motion_len: ${motion_len}
+  scene_type: ${scene_type}
+  temp_voxel_num: ${temp_voxel_num}
+  is_o0: ${is_o0}  # whether to use o0

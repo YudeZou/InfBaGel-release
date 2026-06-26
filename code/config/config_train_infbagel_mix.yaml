@@ -1,0 +1,69 @@
+# InfBaGel mix training config (diffusion): 50% LINGO scenes, data ratio 0.5, keep CHOIS scenes
+defaults:
+  - dataset: mix
+  - guidance:
+      - pelvis
+  - model:
+      - synhsi_body_chois_pe_voxel_mix
+  - sampler:
+      - pelvis_pe_mix
+  - _self_
+
+
+exp_name: infbagel_mix
+lingo_scene_num: 45     # LINGO scene fraction: 50% (~45 scenes)
+lingo_data_ratio: 0.5      # LINGO data fraction: 50% relative to CHOIS
+empty_chois_scene: false   # keep CHOIS scenes
+epochs: 1001
+ckpt_interval: 20          # save a checkpoint every 20 epochs
+lingo_only: false
+
+random_seed: 42           # fixed random seed for reproducibility
+
+train: true
+load_state_dict: false
+batch_size: 512
+lr: 0.0001
+device: cuda:0
+use_tensorboard: true
+exp_dir: ${oc.env:ROOT_DIR}/results/${exp_name}
+smpl_dir: ${oc.env:ROOT_DIR}/smpl_models
+
+w: 0
+
+num_gpus: 4
+num_workers: 2
+scene_type: occ_temp
+max_window_size: 16
+motion_len: 100000
+vis: false
+start_type: stand
+
+load_language: true
+load_scene: true
+use_pi: true
+load_hand_goal: true
+load_pelvis_goal: true
+load_object_goal: true
+
+human_only_ratio: 0.4
+
+temp_voxel_num: 3
+is_o0: false # whether to use o0
+
+use_random_frame_bps: true
+use_object_keypoints: true
+add_object_voxel: true
+
+loss_w_vel: 0
+
+loss_w_obj_pts: 50
+loss_w_fk: 50
+auto_regre_num: 2
+
+start_epoch: 0
+ckpt_path: "/cpfs04/shared/sport/zouyude/code/lingo-release/results/chois_813_pe_x0_voxel_3/checkpoints/chois_813_pe_x0_voxel_3_epoch200.pth"
+
+hydra:
+  run:
+    dir: ${exp_dir}
