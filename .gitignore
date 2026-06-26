@@ -8,12 +8,11 @@ __pycache__/
 *.json
 *.csv
 *.obj
-*.png
 *.mp4
 *.pkl
 *.jpg
 results/
 checkpoint/
-smpl_models/
+smpl_models
 t2m_eval/
 data/
