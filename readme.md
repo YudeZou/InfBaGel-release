@@ -209,7 +209,7 @@ python render_mesh_from_params.py --param_file <path/to/params.pkl> --output_dir
 
 # Citation
 ```
-@inproceedings{zou2025infbagel,
+@inproceedings{zou2026infbagel,
     title={InfBaGel: Human-Object-Scene Interaction Generation with Dynamic Perception and Iterative Refinement},
     author={Yude Zou and Junji Gong and Xing Gao and Zixuan Li and Tianxing Chen and Guanjie Zheng},
     booktitle={The Fourteenth International Conference on Learning Representations},
